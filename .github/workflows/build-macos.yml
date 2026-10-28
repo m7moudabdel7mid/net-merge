@@ -1,0 +1,28 @@
+# Fork-only: builds a macOS universal binary to download from the run's Artifacts.
+name: build-macos
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./internal/nics/ ./internal/tray/ ./cmd/...
+      - name: Build universal binary
+        run: |
+          v="0.3.5-labels+$(git rev-parse --short HEAD)"
+          for arch in arm64 amd64; do
+            CGO_ENABLED=1 GOARCH=$arch go build -ldflags "-s -w -X main.version=$v" -o net-merge-$arch ./cmd/net-merge
+          done
+          lipo -create -output net-merge net-merge-arm64 net-merge-amd64
+          codesign --force --sign - net-merge
+      - uses: actions/upload-artifact@v4
+        with:
+          name: net-merge-macos-universal
+          path: net-merge
