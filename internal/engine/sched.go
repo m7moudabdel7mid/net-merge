@@ -40,6 +40,7 @@ type slotAddr struct{ ip4, ip6 net.IP }
 // Slot is a NIC plus its live counters. Counters are atomic so the data path never takes a lock.
 type Slot struct {
 	Name  string
+	Label string // display name from nics.Nic; guarded by Scheduler.mu
 	Index int
 	key   string
 	addr  atomic.Pointer[slotAddr]
@@ -115,6 +116,7 @@ func (sl *Slot) ip(f Family) net.IP {
 
 type SlotStats struct {
 	Name              string
+	Label             string `json:",omitempty"` // OS display name, e.g. "Wi-Fi" for en0 on macOS
 	IP                string
 	IP6               string
 	State             string // IPv4 probe state, "-" if the adapter has no IPv4
@@ -230,13 +232,16 @@ func (s *Scheduler) Update(nics []nics.Nic) {
 			}
 		}
 		if found == nil {
-			sl := &Slot{Name: n.Name, Index: n.Index, key: n.Name, weight: [2]float64{n.Weight, n.Weight}, present: true}
+			sl := &Slot{Name: n.Name, Label: n.Label, Index: n.Index, key: n.Name, weight: [2]float64{n.Weight, n.Weight}, present: true}
 			sl.addr.Store(na)
 			sl.setLimit(s.limits[n.Name])
 			s.slots = append(s.slots, sl)
 			continue
 		}
 		found.present = true
+		if n.Label != "" {
+			found.Label = n.Label
+		}
 		if !s.auto {
 			found.weight = [2]float64{n.Weight, n.Weight}
 		}
@@ -505,7 +510,7 @@ func (s *Scheduler) Snapshot() []SlotStats {
 	for _, sl := range s.slots {
 		a := sl.addr.Load()
 		st := SlotStats{
-			Name: sl.Name, State: "-", State6: "-", Present: sl.present,
+			Name: sl.Name, Label: sl.Label, State: "-", State6: "-", Present: sl.present,
 			Weight: sl.weight[Fam4], Weight6: sl.weight[Fam6],
 			Active: sl.active.Load(), Total: sl.total.Load(), Failed: sl.failed.Load(),
 			BytesIn:  sl.bytesIn[Fam4].Load() + sl.bytesIn[Fam6].Load(),
@@ -524,4 +529,13 @@ func (s *Scheduler) Snapshot() []SlotStats {
 		out = append(out, st)
 	}
 	return out
+}
+
+// DisplayName is how the adapter is shown to people: "Wi-Fi (en0)" when the OS has a display name
+// for it, else its interface name. Name stays the key for limits and the CLI.
+func (s SlotStats) DisplayName() string {
+	if s.Label == "" || s.Label == s.Name {
+		return s.Name
+	}
+	return s.Label + " (" + s.Name + ")"
 }

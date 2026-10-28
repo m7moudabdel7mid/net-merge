@@ -187,6 +187,9 @@ func (c *common) boot(mode func() string) (*engine.Scheduler, *engine.Balancer, 
 
 func describeNic(n nics.Nic) string {
 	s := n.Name
+	if n.Label != "" && n.Label != n.Name {
+		s = n.Label + " (" + n.Name + ")"
+	}
 	if n.IP != nil {
 		s += "  v4 " + n.IP.String()
 	}
@@ -210,7 +213,7 @@ func formatNICs(snap []engine.SlotStats) string {
 			lim = "  limit " + limitPhrase(s.LimitMbps)
 		}
 		fmt.Fprintf(&sb, "%-14s v4 %-11s v6 %-11s link down %6.1f up %5.1f Mbit/s  via net-merge %6.1f  active %3d  total %5d  w %.2f/%.2f  failed %d%s%s\n",
-			s.Name, s.State, s.State6, s.LinkIn*8/1e6, s.LinkOut*8/1e6, (s.RateIn+s.RateOut)*8/1e6, s.Active, s.Total, s.Weight, s.Weight6, s.Failed, lim, gone)
+			s.DisplayName(), s.State, s.State6, s.LinkIn*8/1e6, s.LinkOut*8/1e6, (s.RateIn+s.RateOut)*8/1e6, s.Active, s.Total, s.Weight, s.Weight6, s.Failed, lim, gone)
 	}
 	return sb.String()
 }

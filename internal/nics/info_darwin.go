@@ -147,6 +147,9 @@ var ports struct {
 	names map[string]string
 }
 
+// displayLabel is the System Settings name shown next to enN, which says nothing by itself.
+func displayLabel(ifname string) string { return portName(ifname) }
+
 func portName(ifname string) string {
 	ports.mu.Lock()
 	defer ports.mu.Unlock()

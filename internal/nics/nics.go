@@ -15,6 +15,7 @@ type Nic struct {
 	IP     net.IP
 	IP6    net.IP
 	Weight float64
+	Label  string // the OS's display name when Name is not one (macOS: "Wi-Fi" for en0); "" if none
 }
 
 // Skip is an adapter that was seen but not used, with the reason (shown by `net-merge list`).
@@ -107,7 +108,7 @@ func DiscoverNicsDetailed(include []string, weights map[string]float64) ([]Nic, 
 		if v, ok := weights[ifc.Name]; ok {
 			w = v
 		}
-		out = append(out, Nic{Name: ifc.Name, Index: ifc.Index, IP: ip4, IP6: ip6, Weight: w})
+		out = append(out, Nic{Name: ifc.Name, Index: ifc.Index, IP: ip4, IP6: ip6, Weight: w, Label: displayLabel(ifc.Name)})
 	}
 	return out, skipped, nil
 }

@@ -75,3 +75,6 @@ func adapterInfos() (map[int]adapterInfo, error) {
 	}
 	return m, nil
 }
+
+// displayLabel: interface names (wlan0, eth0) already say what they are; desc is a driver name.
+func displayLabel(string) string { return "" }

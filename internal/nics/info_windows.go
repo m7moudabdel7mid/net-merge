@@ -79,3 +79,6 @@ func adapterInfos() (map[int]adapterInfo, error) {
 	}
 	return nil, windows.ERROR_BUFFER_OVERFLOW
 }
+
+// displayLabel: interface names are already the display names ("Wi-Fi", "Ethernet 2").
+func displayLabel(string) string { return "" }

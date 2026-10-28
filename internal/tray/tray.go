@@ -286,7 +286,7 @@ func (u *trayUI) refresh() {
 		}
 		s := live[i]
 		u.rowNames[i] = s.Name
-		txt := fmt.Sprintf("%s:  ↓%s ↑%s Mbps", s.Name, mbps(s.LinkIn), mbps(s.LinkOut))
+		txt := fmt.Sprintf("%s:  ↓%s ↑%s Mbps", s.DisplayName(), mbps(s.LinkIn), mbps(s.LinkOut))
 		if s.LimitMbps > 0 {
 			txt += "  limit " + limitText(s.LimitMbps)
 		}
@@ -360,7 +360,7 @@ func trayTooltip(state string, down, up float64, live []engine.SlotStats) string
 	build := func(head string, withUp bool, unit string) string {
 		lines := []string{head}
 		for _, s := range live {
-			l := shortName(s.Name) + " ↓" + mbps(s.LinkIn)
+			l := shortName(tipName(s)) + " ↓" + mbps(s.LinkIn)
 			if withUp {
 				l += " ↑" + mbps(s.LinkOut)
 			}
@@ -390,6 +390,15 @@ func trayTooltip(state string, down, up float64, live []engine.SlotStats) string
 var shortNamer = strings.NewReplacer("Ethernet", "Eth", "Wi-Fi", "WiFi", "Local Area Connection", "LAN", "Cellular", "Cell")
 
 func shortName(n string) string { return shortNamer.Replace(n) }
+
+// tipName is the tooltip's adapter name: the display name alone when there is one, since the tooltip
+// is short on room and the menu shows the interface name too.
+func tipName(s engine.SlotStats) string {
+	if s.Label != "" {
+		return s.Label
+	}
+	return s.Name
+}
 
 func utf16Len(s string) int {
 	n := 0
