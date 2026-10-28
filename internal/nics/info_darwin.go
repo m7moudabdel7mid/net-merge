@@ -142,14 +142,26 @@ func zeroMask(a route.Addr) bool {
 // networksetup is slow-ish and the answer rarely changes, so remember it and re-ask only when an
 // interface it has not seen appears (at most every 10 s).
 var ports struct {
-	mu    sync.Mutex
-	at    time.Time
-	names map[string]string
+	mu       sync.Mutex
+	at       time.Time
+	names    map[string]string // device -> Hardware Port ("Wi-Fi", "USB 10/100/1000 LAN")
+	services map[string]string // device -> network service, which the user can rename ("LAN")
 }
 
-// displayLabel is the System Settings name shown next to enN, which says nothing by itself.
-func displayLabel(ifname string) string { return portName(ifname) }
+// displayLabel is the name shown next to enN, which says nothing by itself: the network service
+// (renamed in System Settings > Network), else the Hardware Port.
+func displayLabel(ifname string) string {
+	portName(ifname) // refreshes both maps
+	ports.mu.Lock()
+	defer ports.mu.Unlock()
+	if s := ports.services[ifname]; s != "" {
+		return s
+	}
+	return ports.names[ifname]
+}
 
+// portName is the Hardware Port, which the user cannot rename; virtual-adapter detection uses it,
+// so a service renamed to, say, "VPN" does not get a real adapter skipped.
 func portName(ifname string) string {
 	ports.mu.Lock()
 	defer ports.mu.Unlock()
@@ -157,7 +169,7 @@ func portName(ifname string) string {
 		return n
 	}
 	if time.Since(ports.at) > 10*time.Second {
-		ports.at, ports.names = time.Now(), listPorts()
+		ports.at, ports.names, ports.services = time.Now(), listPorts(), listServices()
 	}
 	return ports.names[ifname]
 }
@@ -167,9 +179,13 @@ func listPorts() map[string]string {
 	if err != nil {
 		return nil
 	}
+	return parsePorts(string(out))
+}
+
+func parsePorts(out string) map[string]string {
 	names := map[string]string{}
 	var port string
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(out, "\n") {
 		if v, ok := strings.CutPrefix(line, "Hardware Port: "); ok {
 			port = v
 		} else if v, ok := strings.CutPrefix(line, "Device: "); ok && port != "" {
@@ -177,4 +193,34 @@ func listPorts() map[string]string {
 		}
 	}
 	return names
+}
+
+func listServices() map[string]string {
+	out, err := exec.Command("/usr/sbin/networksetup", "-listnetworkserviceorder").Output()
+	if err != nil {
+		return nil
+	}
+	return parseServices(string(out))
+}
+
+// serviceLine is "(1) Wi-Fi", or "(*) Wi-Fi" for a disabled service; the next line names its
+// device: "(Hardware Port: Wi-Fi, Device: en0)".
+var serviceLine = regexp.MustCompile(`^\((?:\d+|\*)\) (.+)$`)
+
+func parseServices(out string) map[string]string {
+	services := map[string]string{}
+	var name string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if m := serviceLine.FindStringSubmatch(line); m != nil {
+			name = m[1]
+		} else if _, dev, ok := strings.Cut(line, "Device: "); ok && name != "" {
+			dev = strings.TrimSuffix(strings.TrimSpace(dev), ")")
+			if _, seen := services[dev]; !seen && dev != "" { // first in service order wins
+				services[dev] = name
+			}
+			name = ""
+		}
+	}
+	return services
 }
