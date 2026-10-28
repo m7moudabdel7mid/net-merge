@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15-intel # arm64 runners keep timing out in the queue; this still builds both archs
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
